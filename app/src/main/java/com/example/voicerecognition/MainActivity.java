@@ -1,32 +1,30 @@
 package com.example.voicerecognition;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
 
-import android.Manifest;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.net.Uri;
-import android.os.Build;
+import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.provider.Settings;
-import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
-import android.view.MotionEvent;
+import android.speech.tts.TextToSpeech;
+import android.util.Log;
 import android.view.View;
-import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Date;
 import java.util.Locale;
+import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 
 //public class MainActivity extends AppCompatActivity {
 //
@@ -40,7 +38,7 @@ import java.util.regex.Pattern;
 //        super.onCreate(savedInstanceState);
 //        setContentView(R.layout.activity_main);
 //        txvResult = (TextView) findViewById(R.id.text);
-//        imageView = (ImageView) findViewById(R.id.speak);
+//        imageView = (ImageView) findViewById(R.id.listen);
 //    }
 //
 //    public void getSpeechInput(View view) {
@@ -98,157 +96,224 @@ import java.util.regex.Pattern;
 //}
 
 public class MainActivity extends AppCompatActivity {
+    SharedPreferences sharedPreferences;
 
-    boolean TurnOn_Off = true;
+    public static final String MyPREFERENCES = "MyPrefs";
+    public static final String FMFrequency = "FMFrequency";
+    public static final String VolumeLevel = "VolumeLevel";
+    public static final String AC_degree = "ACdegree";
+    public static final String Drive_Mode = "Drive_Mode";
+
+
+    private static final String TAG = "TTS Engine";
+    private TextView txvResult;
+    private ImageView imageView;
+    SpeechRecognizer speechRecognizer;
+    Intent speechrecognizerintent;
+    public static Boolean Iswordfound = false;
+    private TextToSpeech mTTs;
+
+
+    float fmfrequency = 0.0f;
+    float volumeLevel = 10.0f;
+    int ac_degree = 18;
+    String drivemode = "Eco";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        txvResult = (TextView) findViewById(R.id.text);
+        imageView = (ImageView) findViewById(R.id.listen);
 
-        checkPermission();
-
-        final EditText editText = findViewById(R.id.editText);
-
-        String str = "Turn on the fm 90.2 and volume at 3";
-
-
-
-//        String line = "Turn on the AC at 18";
-//        Pattern numberPat = Pattern.compile("\\d+");
-//        Matcher matcher1 = numberPat.matcher(line);
-//
-//        Pattern stringPat = Pattern.compile("Turn on ", Pattern.CASE_INSENSITIVE);
-//        Matcher matcher2 = stringPat.matcher(line);
-//
-//        if (matcher1.find() && matcher2.find())
-//        {
-//            int number = Integer.parseInt(matcher1.group());
-//            System.out.println(number + " squared = " + (number * number));
-//        }
-
-        final SpeechRecognizer mSpeechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
-
-
-        final Intent mSpeechRecognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        mSpeechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        mSpeechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE,
-                Locale.getDefault());
-
-
-        mSpeechRecognizer.setRecognitionListener(new RecognitionListener() {
+        mTTs = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
             @Override
-            public void onReadyForSpeech(Bundle bundle) {
+            public void onInit(int status) {
+                if (status == TextToSpeech.SUCCESS) {
+                    int result = mTTs.setLanguage(Locale.ENGLISH);
+
+                    //Good indian female voice pitch 0.7 and speed = 0.2
+//                            mTtsEngine.setLanguage(Locale.GERMAN);
+                    mTTs.setPitch((float) 0.7);
+                    mTTs.setSpeechRate((float) 0.9);
+                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        Log.e("TTS", "Language not Supported");
+                    }
+
+                } else {
+                    Log.w(TAG, "Could not open TTS Engine (onInit status=" + status
+                            + "). Ignoring text to speech");
+                    mTTs = null;
+                }
 
             }
+        });
+    }
 
+
+    public void speak(String string) {
+        mTTs.speak(string, TextToSpeech.QUEUE_FLUSH, null);
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (mTTs != null) {
+            mTTs.stop();
+            mTTs.shutdown();
+        }
+        super.onDestroy();
+    }
+
+    public void getSpeechInput(View view) {
+        imageView.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onBeginningOfSpeech() {
-
+            public void onClick(View v) {
+                Iswordfound = false;
+                Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+                intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Need to speak");
+                try {
+                    startActivityForResult(intent, 10);
+                } catch (ActivityNotFoundException a) {
+                    Toast.makeText(getApplicationContext(),
+                            "Sorry your device not supported",
+                            Toast.LENGTH_SHORT).show();
+                }
             }
+        });
+    }
 
-            @Override
-            public void onRmsChanged(float v) {
+    public void save_preferences() {
+        if (sharedPreferences != null) {
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putInt(AC_degree, ac_degree);
+            editor.putFloat(FMFrequency, fmfrequency);
+            editor.putFloat(VolumeLevel, volumeLevel);
+            editor.apply();
+        }
 
-            }
+    }
 
-            @Override
-            public void onBufferReceived(byte[] bytes) {
+    public void retrieve_preferences() {
+        sharedPreferences = getSharedPreferences(MyPREFERENCES, Context.MODE_PRIVATE);
+        ac_degree = sharedPreferences.getInt(AC_degree, ac_degree);
+        fmfrequency = sharedPreferences.getFloat(FMFrequency, fmfrequency);
+        volumeLevel = sharedPreferences.getFloat(VolumeLevel, volumeLevel);
+    }
 
-            }
-
-            @Override
-            public void onEndOfSpeech() {
-
-            }
-
-            @Override
-            public void onError(int i) {
-
-            }
-
-            @Override
-            public void onResults(Bundle bundle) {
-                //getting all the matches
-                ArrayList<String> matches = bundle
-                        .getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 10) {
+            if (resultCode == RESULT_OK && data != null) {
+                ArrayList<String> result = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+                retrieve_preferences();
 
                 //displaying the first match
-                if (matches != null)
-                    editText.setText(matches.get(0));
+                if (result != null)
+                    txvResult.setText(result.get(0));
 
+                if (txvResult.getText().toString().contains("turn on")) {
+                    if (txvResult.getText().toString().contains("AC") && !Iswordfound) {
+                        Iswordfound = true;
+                        String line = txvResult.getText().toString();
+                        System.out.println("Text is" + line);
 
+                        Pattern numberPat = Pattern.compile("\\d+");
+                        Matcher matcher1 = numberPat.matcher(line);
 
+                        Pattern stringPat = Pattern.compile("turn on ", Pattern.CASE_INSENSITIVE);
+                        Matcher matcher2 = stringPat.matcher(line);
 
-                if (editText.getText().toString().contains("turn on")) {
-                     TurnOn_Off = false;
-                        if (editText.getText().toString().contains("AC")){
-                            String line = editText.getText().toString();
-                            System.out.println("Text is"+line);
-
-                            Pattern numberPat = Pattern.compile("\\d+");
-                            Matcher matcher1 = numberPat.matcher(line);
-
-                            Pattern stringPat = Pattern.compile("turn on ", Pattern.CASE_INSENSITIVE);
-                            Matcher matcher2 = stringPat.matcher(line);
-
-                            if (matcher1.find() && matcher2.find())
-                            {
-                                int number = Integer.parseInt(matcher1.group());
-                                Toast.makeText(getApplicationContext(),"Turning on AC at "+number,Toast.LENGTH_LONG).show();
-
-                            }
-
+                        if (matcher1.find() && matcher2.find()) {
+                            ac_degree = Integer.parseInt(matcher1.group());
+                            Toast.makeText(getApplicationContext(), "Turning on AC at " + ac_degree, Toast.LENGTH_LONG).show();
+                        }
+                        speak("Setting the AC at " + ac_degree + " degree celcius");
                     }
-                    if (editText.getText().toString().contains("FM")){
-                        String line = editText.getText().toString();
-                        System.out.println("Text is"+line);
 
-//                        Pattern numberPat = Pattern.compile("\\d*\\.?\\d+");
-//                        Matcher matcher1 = numberPat.matcher(line);
-//
-//                        Pattern stringPat = Pattern.compile("turn on ", Pattern.CASE_INSENSITIVE);
-//                        Matcher matcher2 = stringPat.matcher(line);
+                    if (txvResult.getText().toString().contains("FM") || txvResult.getText().toString().equalsIgnoreCase("Volume") && !Iswordfound) {
+                        String line = txvResult.getText().toString();
+                        Iswordfound = true;
 
+                        boolean checkFMNumber1 = false;
+                        boolean checkFMNumber2 = false;
+
+                        boolean checkVolume1 = false;
+                        boolean checkVolume2 = false;
+
+                        float FMValue = fmfrequency;
+                        float VolumeLevel = volumeLevel;
 
                         line = line.replaceAll("[^.0-9]+", " ");
-                        System.out.println(Arrays.asList(line.trim().split(" ")));
-                        List list = Arrays.asList(line.trim().split(" "));
-                        double  number1 = Double.parseDouble((String) list.get(0));
-                        double number2 = Double.parseDouble((String) list.get(1));
+                        String[] string = line.split("\\s+");
+                        System.out.println(Arrays.toString(string) + string.length);
 
-                        if(number1>80 && number1<110){
-                            System.out.println("Number in range");
+                        if (string.length == 2) {
+                            fmfrequency = Float.parseFloat(string[1]);
+
+                            checkFMNumber1 = isBetween(fmfrequency, 80, 110);
+                            checkVolume1 = isBetween(fmfrequency, 1, 10);
+
+                            if (checkFMNumber1) {
+                                Toast.makeText(getApplicationContext(), "Turn on fm " + fmfrequency, Toast.LENGTH_LONG).show();
+                            } else if (checkVolume1) {
+                                Toast.makeText(getApplicationContext(), "Turn on Volume " + fmfrequency, Toast.LENGTH_LONG).show();
+                            }
+
+
+                        } else if (string.length == 4 || string.length == 3) {
+                            fmfrequency = Float.parseFloat(string[1]);
+                            volumeLevel = Float.parseFloat(string[2]);
+
+                            checkFMNumber1 = isBetween(fmfrequency, 80, 110);
+                            checkFMNumber2 = isBetween(volumeLevel, 80, 110);
+
+                            //Assigning the value of FM
+                            if (checkFMNumber1) {
+                                FMValue = fmfrequency;
+                            } else if (checkFMNumber2) {
+                                FMValue = volumeLevel;
+                            } else
+                                FMValue = 98.3f;
+
+                            checkVolume1 = isBetween(fmfrequency, 1, 10);
+                            checkVolume2 = isBetween(volumeLevel, 1, 10);
+
+                            //Assigning the value of VolumeLevel
+                            if (checkVolume1) {
+                                VolumeLevel = (int) fmfrequency;
+                            } else if (checkVolume2) {
+                                VolumeLevel = volumeLevel;
+                            } else
+                                VolumeLevel = 5;
+
+                            Toast.makeText(getApplicationContext(), "Turning on fm " + FMValue + " And volume  " + VolumeLevel, Toast.LENGTH_LONG).show();
+
+                        } else if (string.length == 0) {
+                            Toast.makeText(getApplicationContext(), "Turning on ", Toast.LENGTH_LONG).show();
                         }
-                        if(number2>0 && number1<10){
-                            System.out.println("Number not in range");
 
-                        }
-                        System.out.println("Turning on Fm at "+number1+" and volume at "+number2);
-                        Toast.makeText(getApplicationContext(),"Turning on fm"+number1+" And volume at "+number2,Toast.LENGTH_LONG).show();
+                        speak("Turning on FM " + fmfrequency + "and Volume at " + (int) volumeLevel);
 
-
-//
-//                        if (matcher1.find() && matcher2.find())
-//                        {
-//                            Double number = Double.parseDouble(matcher1.group());
-//                            Toast.makeText(getApplicationContext(),"Turning on fm"+number1+" And volume at "+number2,Toast.LENGTH_LONG).show();
-//
-//                        }
                     }
 
-                    if (editText.getText().toString().contains("Bluetooth")){
-                        Toast.makeText(getApplicationContext(),"Turning on Bluetooth ",Toast.LENGTH_LONG).show();
+                    if (txvResult.getText().toString().contains("Bluetooth") && !Iswordfound) {
+                        Iswordfound = true;
+                        Toast.makeText(getApplicationContext(), "Turning on Bluetooth ", Toast.LENGTH_LONG).show();
+                        speak("Turning on Bluetooth");
+
                     }
                 }
 
                 ///Commands for turning off....
-                if (editText.getText().toString().contains("turn off")) {
-                    TurnOn_Off = false;
-                    if (editText.getText().toString().contains("AC")){
-                        String line = editText.getText().toString();
-                        System.out.println("Text is"+line);
+                else if (txvResult.getText().toString().contains("turn off") ) {
+                    if (txvResult.getText().toString().contains("AC") &&!Iswordfound) {
+                        Iswordfound = true;
+                        String line = txvResult.getText().toString();
+                        System.out.println("Text is" + line);
 
                         Pattern numberPat = Pattern.compile("\\d+");
                         Matcher matcher1 = numberPat.matcher(line);
@@ -256,18 +321,18 @@ public class MainActivity extends AppCompatActivity {
                         Pattern stringPat = Pattern.compile("turn off ", Pattern.CASE_INSENSITIVE);
                         Matcher matcher2 = stringPat.matcher(line);
 
-                        if (matcher1.find() && matcher2.find())
-                        {
+                        if (matcher1.find() && matcher2.find()) {
                             int number = Integer.parseInt(matcher1.group());
-                            Toast.makeText(getApplicationContext(),"Turning off AC  "+number,Toast.LENGTH_LONG).show();
-
+                            Toast.makeText(getApplicationContext(), "Turning off AC  " + number, Toast.LENGTH_LONG).show();
                         }
+                        speak("AC turned off");
+
 
                     }
-                    if (editText.getText().toString().contains("FM")){
-
-                        String line = editText.getText().toString();
-                        System.out.println("Text is"+line);
+                    if (txvResult.getText().toString().contains("FM") &&!Iswordfound) {
+                        Iswordfound = true;
+                        String line = txvResult.getText().toString();
+                        System.out.println("Text is" + line);
 
                         Pattern numberPat = Pattern.compile("\\d*\\.?\\d+");
                         Matcher matcher1 = numberPat.matcher(line);
@@ -275,75 +340,60 @@ public class MainActivity extends AppCompatActivity {
                         Pattern stringPat = Pattern.compile("turn off ", Pattern.CASE_INSENSITIVE);
                         Matcher matcher2 = stringPat.matcher(line);
 
-                        if (matcher1.find() && matcher2.find())
-                        {
+                        if (matcher1.find() && matcher2.find()) {
                             Double number = Double.parseDouble(matcher1.group());
-                            Toast.makeText(getApplicationContext(),"Turning off  "+number,Toast.LENGTH_LONG).show();
+                            Toast.makeText(getApplicationContext(), "Turning off  " + number, Toast.LENGTH_LONG).show();
 
                         }
+                        speak("FM turned off");
+
                     }
 
-                    if (editText.getText().toString().contains("Bluetooth")){
-                        Toast.makeText(getApplicationContext(),"Turning off Bluetooth ",Toast.LENGTH_LONG).show();
+                    if (txvResult.getText().toString().contains("Bluetooth") &&!Iswordfound) {
+                        Iswordfound = true;
+                        Toast.makeText(getApplicationContext(), "Turning off Bluetooth ", Toast.LENGTH_LONG).show();
+                        speak("Bluetooth turned off");
+
                     }
                 }
-//                if (editText.getText().toString().contains("off")) {
-//                    Toast.makeText(getApplicationContext(), "Turning off", Toast.LENGTH_SHORT).show();
-//                }
-//                if (editText.getText().toString().contains("music")) {
-//                    Toast.makeText(getApplicationContext(), "Playing some music", Toast.LENGTH_SHORT).show();
-//                }
-                if (editText.getText().toString().contains("map")) {
+                if (txvResult.getText().toString().contains("map") && !Iswordfound) {
+                    Iswordfound = true;
                     Toast.makeText(getApplicationContext(), "Opening the Google Map", Toast.LENGTH_SHORT).show();
+                    speak("Opening the Google Map");
+
                 }
-//                if (editText.getText().toString().contains("brake")) {
-//                    Toast.makeText(getApplicationContext(), " Please press the brake", Toast.LENGTH_SHORT).show();
-//                }
-
-
-            }
-
-            @Override
-            public void onPartialResults(Bundle bundle) {
-
-            }
-
-            @Override
-            public void onEvent(int i, Bundle bundle) {
-
-            }
-        });
-
-        findViewById(R.id.button).setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View view, MotionEvent motionEvent) {
-                switch (motionEvent.getAction()) {
-                    case MotionEvent.ACTION_UP:
-                        mSpeechRecognizer.stopListening();
-                        editText.setHint("You will see input here");
-                        break;
-
-                    case MotionEvent.ACTION_DOWN:
-                        mSpeechRecognizer.startListening(mSpeechRecognizerIntent);
-                        editText.setText("");
-                        editText.setHint("Listening...");
-
-                        break;
+                if (txvResult.getText().toString().contains("drive mode") && !Iswordfound) {
+                    Iswordfound = true;
+                    if (txvResult.getText().toString().contains("eco") || txvResult.getText().toString().contains("Eco")) {
+                        drivemode = "Eco";
+                    }  if (txvResult.getText().toString().contains("sport") || txvResult.getText().toString().contains("Sport")) {
+                        drivemode = "Sport";
+                    }  if (txvResult.getText().toString().contains("normal") || txvResult.getText().toString().contains("Normal")) {
+                        drivemode = "Normal";
+                    }
+//                    Toast.makeText(getApplicationContext(), "Drive mode " + drivemode, Toast.LENGTH_SHORT).show();
+                    speak("The car is in" + drivemode+"mode");
+                }  if (txvResult.getText().toString().contains("time") && !Iswordfound) {
+                    Iswordfound = true;
+                    long timestamp = System.currentTimeMillis();
+                    Date getime = new Date(timestamp);
+                    String timeZone = "GMT+5:30";
+                    SimpleDateFormat current_time = new SimpleDateFormat("hh mm a");
+                    current_time.setTimeZone(TimeZone.getTimeZone(timeZone));
+                    String time = current_time.format(getime);
+                    speak("Time is " + time);
                 }
-                return false;
+                if(!Iswordfound){
+                    speak("Sorry I couldn't catch you");
+                }
             }
-        });
-    }
-
-
-    private void checkPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!(ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)) {
-                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.parse("package:" + getPackageName()));
-                startActivity(intent);
-                finish();
-            }
+            save_preferences();
         }
     }
+
+    public static boolean isBetween(double value, double min, double max) {
+        return ((value >= min) && (value <= max));
+    }
+
 }
+

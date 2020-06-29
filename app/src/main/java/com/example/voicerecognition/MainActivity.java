@@ -6,10 +6,17 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
+import android.text.Html;
+import android.text.Spannable;
+import android.text.SpannableString;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.StyleSpan;
 import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
@@ -106,7 +113,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     private static final String TAG = "TTS Engine";
-    private TextView txvResult;
+    TextView txvResult;
     private ImageView imageView;
     SpeechRecognizer speechRecognizer;
     Intent speechrecognizerintent;
@@ -201,6 +208,7 @@ public class MainActivity extends AppCompatActivity {
         ac_degree = sharedPreferences.getInt(AC_degree, ac_degree);
         fmfrequency = sharedPreferences.getFloat(FMFrequency, fmfrequency);
         volumeLevel = sharedPreferences.getFloat(VolumeLevel, volumeLevel);
+        System.out.println(volumeLevel);
     }
 
     @Override
@@ -218,7 +226,9 @@ public class MainActivity extends AppCompatActivity {
                 if (txvResult.getText().toString().contains("turn on")) {
                     if (txvResult.getText().toString().contains("AC") && !Iswordfound) {
                         Iswordfound = true;
+
                         String line = txvResult.getText().toString();
+
                         System.out.println("Text is" + line);
 
                         Pattern numberPat = Pattern.compile("\\d+");
@@ -232,6 +242,10 @@ public class MainActivity extends AppCompatActivity {
                             Toast.makeText(getApplicationContext(), "Turning on AC at " + ac_degree, Toast.LENGTH_LONG).show();
                         }
                         speak("Setting the AC at " + ac_degree + " degree celcius");
+                        //Call the highlighter function
+                        String arraywords[] = {"AC",String.valueOf(ac_degree)};
+                        TextHighlighter(arraywords);
+
                     }
 
                     if (txvResult.getText().toString().contains("FM") || txvResult.getText().toString().equalsIgnoreCase("Volume") && !Iswordfound) {
@@ -247,13 +261,14 @@ public class MainActivity extends AppCompatActivity {
                         float FMValue = fmfrequency;
                         float VolumeLevel = volumeLevel;
 
+
                         line = line.replaceAll("[^.0-9]+", " ");
                         String[] string = line.split("\\s+");
                         System.out.println(Arrays.toString(string) + string.length);
 
                         if (string.length == 2) {
                             fmfrequency = Float.parseFloat(string[1]);
-
+                            System.out.println(fmfrequency);
                             checkFMNumber1 = isBetween(fmfrequency, 80, 110);
                             checkVolume1 = isBetween(fmfrequency, 1, 10);
 
@@ -267,6 +282,7 @@ public class MainActivity extends AppCompatActivity {
                         } else if (string.length == 4 || string.length == 3) {
                             fmfrequency = Float.parseFloat(string[1]);
                             volumeLevel = Float.parseFloat(string[2]);
+                            System.out.println(fmfrequency);
 
                             checkFMNumber1 = isBetween(fmfrequency, 80, 110);
                             checkFMNumber2 = isBetween(volumeLevel, 80, 110);
@@ -279,8 +295,8 @@ public class MainActivity extends AppCompatActivity {
                             } else
                                 FMValue = 98.3f;
 
-                            checkVolume1 = isBetween(fmfrequency, 1, 10);
-                            checkVolume2 = isBetween(volumeLevel, 1, 10);
+                            checkVolume1 = isBetween(fmfrequency, 1.0, 10.0);
+                            checkVolume2 = isBetween(volumeLevel, 1.0, 10.0);
 
                             //Assigning the value of VolumeLevel
                             if (checkVolume1) {
@@ -290,20 +306,26 @@ public class MainActivity extends AppCompatActivity {
                             } else
                                 VolumeLevel = 5;
 
-                            Toast.makeText(getApplicationContext(), "Turning on fm " + FMValue + " And volume  " + VolumeLevel, Toast.LENGTH_LONG).show();
+                            Toast.makeText(getApplicationContext(), "Turning on fm " + fmfrequency + " And volume  " + volumeLevel, Toast.LENGTH_LONG).show();
 
                         } else if (string.length == 0) {
                             Toast.makeText(getApplicationContext(), "Turning on ", Toast.LENGTH_LONG).show();
                         }
 
-                        speak("Turning on FM " + fmfrequency + "and Volume at " + (int) volumeLevel);
-
+                        //Call the highlighter function
+                        String arraywords[] = {"FM",String.valueOf(fmfrequency), "volume",String.valueOf((int)volumeLevel)};
+                        TextHighlighter(arraywords);
+                        speak("Turning on FM " + fmfrequency + "and Volume at " + (int)volumeLevel );
                     }
 
                     if (txvResult.getText().toString().contains("Bluetooth") && !Iswordfound) {
                         Iswordfound = true;
                         Toast.makeText(getApplicationContext(), "Turning on Bluetooth ", Toast.LENGTH_LONG).show();
+                        //Call the highlighter function
+                        String arraywords[] = {"Bluetooth"};
+                        TextHighlighter(arraywords);
                         speak("Turning on Bluetooth");
+
 
                     }
                 }
@@ -325,6 +347,7 @@ public class MainActivity extends AppCompatActivity {
                             int number = Integer.parseInt(matcher1.group());
                             Toast.makeText(getApplicationContext(), "Turning off AC  " + number, Toast.LENGTH_LONG).show();
                         }
+                        //Call the highlighter function
                         speak("AC turned off");
 
 
@@ -332,7 +355,6 @@ public class MainActivity extends AppCompatActivity {
                     if (txvResult.getText().toString().contains("FM") &&!Iswordfound) {
                         Iswordfound = true;
                         String line = txvResult.getText().toString();
-                        System.out.println("Text is" + line);
 
                         Pattern numberPat = Pattern.compile("\\d*\\.?\\d+");
                         Matcher matcher1 = numberPat.matcher(line);
@@ -359,6 +381,9 @@ public class MainActivity extends AppCompatActivity {
                 if (txvResult.getText().toString().contains("map") && !Iswordfound) {
                     Iswordfound = true;
                     Toast.makeText(getApplicationContext(), "Opening the Google Map", Toast.LENGTH_SHORT).show();
+                    //Call the highlighter function
+                    String arraywords[] = {"Google", "map"};
+                    TextHighlighter(arraywords);
                     speak("Opening the Google Map");
 
                 }
@@ -367,11 +392,13 @@ public class MainActivity extends AppCompatActivity {
                     if (txvResult.getText().toString().contains("eco") || txvResult.getText().toString().contains("Eco")) {
                         drivemode = "Eco";
                     }  if (txvResult.getText().toString().contains("sport") || txvResult.getText().toString().contains("Sport")) {
-                        drivemode = "Sport";
+                        drivemode = "sport";
                     }  if (txvResult.getText().toString().contains("normal") || txvResult.getText().toString().contains("Normal")) {
-                        drivemode = "Normal";
+                        drivemode = "normal";
                     }
-//                    Toast.makeText(getApplicationContext(), "Drive mode " + drivemode, Toast.LENGTH_SHORT).show();
+                    //Call the highlighter function
+                    String arraywords[] = {"drive", "mode", drivemode};
+                    TextHighlighter(arraywords);
                     speak("The car is in" + drivemode+"mode");
                 }  if (txvResult.getText().toString().contains("time") && !Iswordfound) {
                     Iswordfound = true;
@@ -381,6 +408,8 @@ public class MainActivity extends AppCompatActivity {
                     SimpleDateFormat current_time = new SimpleDateFormat("hh mm a");
                     current_time.setTimeZone(TimeZone.getTimeZone(timeZone));
                     String time = current_time.format(getime);
+                    String arraywords[] = {"Time", String.valueOf(time)};
+                    TextHighlighter(arraywords);
                     speak("Time is " + time);
                 }
                 if(!Iswordfound){
@@ -395,5 +424,35 @@ public class MainActivity extends AppCompatActivity {
         return ((value >= min) && (value <= max));
     }
 
+    public void TextHighlighter(String[] arraywords ){
+        //Create new list
+        System.out.println(Arrays.asList(arraywords));
+        ArrayList<String> mList = new ArrayList<>();
+        String full_text = txvResult.getText().toString();
+        //split strings by space
+        String[] splittedWords = full_text.split(" ");
+        System.out.println(Arrays.asList(splittedWords));
+        SpannableString str=new SpannableString(full_text);
+        //Check the matching words
+        for (int i = 0; i < arraywords.length; i++) {
+            for (int j = 0; j < splittedWords.length; j++) {
+                if (arraywords[i].equalsIgnoreCase(splittedWords[j])) {
+                    mList.add(arraywords[i]);
+                }
+            }
+        }
+        //make the words bold
+        for (int k = 0; k < mList.size(); k++) {
+            int val = full_text.indexOf(mList.get(k));
+            System.out.println(val);
+            final ForegroundColorSpan fcs = new ForegroundColorSpan(Color.rgb(50,205,50));
+
+            str.setSpan(new StyleSpan(Typeface.BOLD), val, val + mList.get(k).length(),
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            str.setSpan(fcs, val, val + mList.get(k).length(),
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        txvResult.setText(str);
+    }
 }
 
